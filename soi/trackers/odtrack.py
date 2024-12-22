@@ -2,16 +2,16 @@
 import os
 
 from .basetracker import Tracker
-# from pytracking.tracker.base.basetracker import BaseTracker
-from lib.test.evaluation.tracker import Tracker as PyTracker
+from lib.test.evaluation.tracker import Tracker as ORGTracker
 
 class TrackerODTrack(Tracker):
     def __init__(self, dataset_name='lasot'):
-        super(TrackerODTrack, self).__init__(name='odtrack-384', is_deterministic=True)
-        pytracker = PyTracker('ostrack', 'vitb_384_mae_ce_32x4_ep300', dataset_name)
+        super(TrackerODTrack, self).__init__(name='odtrack', is_deterministic=True)
+        pytracker = ORGTracker('odtrack', 'baseline', dataset_name)
         params = pytracker.get_parameters()  # 获取相关先验参数
+        params.debug = 0
         self.tracker = pytracker.create_tracker(params)
-        self.tracker_param = 'vitb_384_mae_ce_32x4_ep300'
+        self.tracker_param = 'baseline'
 
     def init(self, image, box):
         # print(box)

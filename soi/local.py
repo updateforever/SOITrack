@@ -1,6 +1,6 @@
 class EnvironmentSettings:
     def __init__(self):
-        self.workspace_dir = '/home/micros/projects/OSTrack-main/result'  # Base directory for saving network checkpoints.
+        self.workspace_dir = '/home/jaychou/DPcode/SOITrack/result'  # Base directory for saving network checkpoints.
         # self.workspace_dir + '/pretrained_networks/'
         self.lasot_dir = '/mnt/first/hushiyu/SOT/LaSOT/data'
         self.got10k_dir = '/mnt/first/hushiyu/SOT/GOT-10k/data'

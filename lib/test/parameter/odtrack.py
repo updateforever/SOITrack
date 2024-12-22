@@ -21,13 +21,15 @@ def parameters(yaml_name: str, run_id=None):
     params.search_size = cfg.TEST.SEARCH_SIZE
 
     # Network checkpoint path
-    if run_id is None:
-        params.checkpoint = os.path.join(save_dir, "checkpoints/train/odtrack/%s/ODTrack_ep%04d.pth.tar" %
-                                        (yaml_name, cfg.TEST.EPOCH))
-    else:
-        params.checkpoint = os.path.join(save_dir, "checkpoints/train/odtrack/%s/ODTrack_ep%04d.pth.tar" %
-                                        (yaml_name, run_id))
+    # if run_id is None:
+    #     params.checkpoint = os.path.join(save_dir, "checkpoints/train/odtrack/%s/ODTrack_ep%04d.pth.tar" %
+    #                                     (yaml_name, cfg.TEST.EPOCH))
+    # else:
+    #     params.checkpoint = os.path.join(save_dir, "checkpoints/train/odtrack/%s/ODTrack_ep%04d.pth.tar" %
+    #                                     (yaml_name, run_id))
     
+    params.checkpoint = '/home/jaychou/DPcode/SOITrack/Base-Fulldata-300ep/ODTrack_ep0300.pth.tar'
+
     # whether to save boxes from all queries
     params.save_all_boxes = False
 

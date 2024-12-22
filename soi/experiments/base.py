@@ -7,8 +7,8 @@ import matplotlib
 import json
 from PIL import Image
 
-from ..utils.metrics import rect_iou, center_error
-from ..utils.viz import show_frame
+from soi.utils.metrics import rect_iou, center_error
+from soi.utils.viz import show_frame
 
 
 class ExperimentBASE(object):

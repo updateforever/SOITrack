@@ -13,12 +13,12 @@ import matplotlib
 from PIL import Image
 import cv2
 
-from ..datasets import GOT10k
-from ..utils.metrics import rect_iou
-from ..utils.viz import show_frame
-from ..utils.ioutils import compress
-from ..utils.screening_util import *
-from ..utils.help import makedir
+from soi.datasets import GOT10k
+from soi.utils.metrics import rect_iou
+from soi.utils.viz import show_frame
+from soi.utils.ioutils import compress
+from soi.utils.screening_util import *
+from soi.utils.help import makedir
 
 
 def call_back():
