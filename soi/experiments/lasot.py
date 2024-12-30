@@ -13,6 +13,17 @@ from soi.datasets.lasot import LaSOT
 from soi.utils.metrics import rect_iou, center_error, normalized_center_error
 from soi.utils.screening_util import *
 from soi.utils.help import makedir
+from soi.trackers import TrackerODTrack
+
+
+def choose_tracker(name):
+    """根据名称选择追踪器类"""
+    tracker_mapping = {
+        # 'keeptrack': TrackerKeepTrack,
+        # 'ostrack': TrackerOSTrack,
+        "odtrack": TrackerODTrack,
+    }
+    return tracker_mapping.get(name)
 
 
 def call_back():
@@ -21,7 +32,7 @@ def call_back():
 
 class ExperimentLaSOT(object):
     r"""Experiment pipeline and evaluation toolkit for LaSOT dataset.
-    
+
     Args:
         root_dir (string): Root directory of LaSOT dataset.
         subset (string, optional): Specify ``train`` or ``test``
@@ -45,8 +56,7 @@ class ExperimentLaSOT(object):
         self.nbins_iou = 21
         self.nbins_ce = 51
         self.nbins_nce = 51
-
-        '''
+        """
         -save_dir
             |--TRACKER_NAME
                 |---DATASET
@@ -54,12 +64,12 @@ class ExperimentLaSOT(object):
                     |--reports
                     |--image
                     |--scores
-        '''
-        self.result_dir = os.path.join(save_dir, 'results')
-        self.report_dir = os.path.join(save_dir, 'reports')
-        self.score_dir = os.path.join(save_dir, 'scores')
-        self.score_map_dir = os.path.join(save_dir, 'score_map')
-        self.result_dir_masked = os.path.join(save_dir, 'results_masked')
+        """
+        self.result_dir = os.path.join(save_dir, "results")
+        self.report_dir = os.path.join(save_dir, "reports")
+        self.score_dir = os.path.join(save_dir, "scores")
+        self.score_map_dir = os.path.join(save_dir, "score_map")
+        self.result_dir_masked = os.path.join(save_dir, "results_masked")
         makedir(save_dir)
         makedir(self.result_dir)
         makedir(self.report_dir)
@@ -74,20 +84,18 @@ class ExperimentLaSOT(object):
         report_dir = os.path.join(self.report_dir, tracker_names[0])
         if not os.path.isdir(report_dir):
             os.makedirs(report_dir)
-        report_file = os.path.join(report_dir, 'performance.json')
+        report_file = os.path.join(report_dir, "performance.json")
 
         performance = {}
         for name in tracker_names:
-            print('Evaluating', name)
+            print("Evaluating", name)
             seq_num = len(self.dataset)
             succ_curve = np.zeros((seq_num, self.nbins_iou))
             prec_curve = np.zeros((seq_num, self.nbins_ce))
             norm_prec_curve = np.zeros((seq_num, self.nbins_nce))
             speeds = np.zeros(seq_num)
 
-            performance.update({name: {
-                'overall': {},
-                'seq_wise': {}}})
+            performance.update({name: {"overall": {}, "seq_wise": {}}})
 
             for s, (_, anno) in enumerate(self.dataset):
                 seq_name = self.dataset.seq_names[s]
@@ -96,41 +104,42 @@ class ExperimentLaSOT(object):
                 #                           self.result_dir[self.result_dir.find(self.dataset.subset[0]):])
                 # record_file = os.path.join(
                 #     result_dir, name, '%s.txt' % seq_name)
-                record_file = os.path.join(
-                    self.result_dir, name, '%s.txt' % seq_name)
-                boxes = np.loadtxt(record_file, delimiter=',')
+                record_file = os.path.join(self.result_dir, name, "%s.txt" % seq_name)
+                boxes = np.loadtxt(record_file, delimiter=",")
                 boxes[0] = anno[0]
                 if not (len(boxes) == len(anno)):
                     # from IPython import embed;embed()
-                    print('warning: %s anno donnot match boxes' % seq_name)
+                    print("warning: %s anno donnot match boxes" % seq_name)
                     len_min = min(len(boxes), len(anno))
                     boxes = boxes[:len_min]
                     anno = anno[:len_min]
                 assert len(boxes) == len(anno)
 
                 ious, center_errors, norm_center_errors = self._calc_metrics(boxes, anno)
-                succ_curve[s], prec_curve[s], norm_prec_curve[s] = self._calc_curves(ious, center_errors,
-                                                                                     norm_center_errors)
+                succ_curve[s], prec_curve[s], norm_prec_curve[s] = self._calc_curves(
+                    ious, center_errors, norm_center_errors)
 
                 # calculate average tracking speed
-                time_file = os.path.join(
-                    self.result_dir, name, 'times/%s_time.txt' % seq_name)
+                time_file = os.path.join(self.result_dir, name, "times/%s_time.txt" % seq_name)
                 if os.path.isfile(time_file):
                     times = np.loadtxt(time_file)
                     times = times[times > 0]
                     if len(times) > 0:
-                        speeds[s] = np.mean(1. / times)
+                        speeds[s] = np.mean(1.0 / times)
 
                 # store sequence-wise performance
-                performance[name]['seq_wise'].update({seq_name: {
-                    'success_curve': succ_curve[s].tolist(),
-                    'precision_curve': prec_curve[s].tolist(),
-                    'normalized_precision_curve': norm_prec_curve[s].tolist(),
-                    'success_score': np.mean(succ_curve[s]),
-                    'precision_score': prec_curve[s][20],
-                    'normalized_precision_score': np.mean(norm_prec_curve[s]),
-                    'success_rate': succ_curve[s][self.nbins_iou // 2],
-                    'speed_fps': speeds[s] if speeds[s] > 0 else -1}})
+                performance[name]["seq_wise"].update({
+                    seq_name: {
+                        "success_curve": succ_curve[s].tolist(),
+                        "precision_curve": prec_curve[s].tolist(),
+                        "normalized_precision_curve": norm_prec_curve[s].tolist(),
+                        "success_score": np.mean(succ_curve[s]),
+                        "precision_score": prec_curve[s][20],
+                        "normalized_precision_score": np.mean(norm_prec_curve[s]),
+                        "success_rate": succ_curve[s][self.nbins_iou // 2],
+                        "speed_fps": speeds[s] if speeds[s] > 0 else -1,
+                    }
+                })
 
             succ_curve = np.mean(succ_curve, axis=0)
             prec_curve = np.mean(prec_curve, axis=0)
@@ -145,24 +154,24 @@ class ExperimentLaSOT(object):
                 avg_speed = -1
 
             # store overall performance
-            performance[name]['overall'].update({
-                'success_curve': succ_curve.tolist(),
-                'precision_curve': prec_curve.tolist(),
-                'normalized_precision_curve': norm_prec_curve.tolist(),
-                'success_score': succ_score,
-                'precision_score': prec_score,
-                'normalized_precision_score': norm_prec_score,
-                'success_rate': succ_rate,
-                'speed_fps': avg_speed})
+            performance[name]["overall"].update({
+                "success_curve": succ_curve.tolist(),
+                "precision_curve": prec_curve.tolist(),
+                "normalized_precision_curve": norm_prec_curve.tolist(),
+                "success_score": succ_score,
+                "precision_score": prec_score,
+                "normalized_precision_score": norm_prec_score,
+                "success_rate": succ_rate,
+                "speed_fps": avg_speed,
+            })
 
         # report the performance
-        with open(report_file, 'w') as f:
+        with open(report_file, "w") as f:
             json.dump(performance, f, indent=4)
         # plot precision and success curves
         self.plot_curves(tracker_names)
 
         return performance
-
 
     def report_masked(self, tracker_names):
         assert isinstance(tracker_names, (list, tuple))
@@ -171,20 +180,18 @@ class ExperimentLaSOT(object):
         report_dir = os.path.join(self.report_dir, tracker_names[0])
         if not os.path.isdir(report_dir):
             os.makedirs(report_dir)
-        report_file = os.path.join(report_dir, 'performance.json')
+        report_file = os.path.join(report_dir, "performance.json")
 
         performance = {}
         for name in tracker_names:
-            print('Evaluating', name)
+            print("Evaluating", name)
             seq_num = len(self.dataset)
             succ_curve = np.zeros((seq_num, self.nbins_iou))
             prec_curve = np.zeros((seq_num, self.nbins_ce))
             norm_prec_curve = np.zeros((seq_num, self.nbins_nce))
             speeds = np.zeros(seq_num)
 
-            performance.update({name: {
-                'overall': {},
-                'seq_wise': {}}})
+            performance.update({name: {"overall": {}, "seq_wise": {}}})
 
             for s, (_, anno) in enumerate(self.dataset):
                 seq_name = self.dataset.seq_names[s]
@@ -193,41 +200,42 @@ class ExperimentLaSOT(object):
                 #                           self.result_dir[self.result_dir.find(self.dataset.subset[0]):])
                 # record_file = os.path.join(
                 #     result_dir, name, '%s.txt' % seq_name)
-                record_file = os.path.join(
-                    self.result_dir, name, '%s.txt' % seq_name)
-                boxes = np.loadtxt(record_file, delimiter=',')
+                record_file = os.path.join(self.result_dir, name, "%s.txt" % seq_name)
+                boxes = np.loadtxt(record_file, delimiter=",")
                 boxes[0] = anno[0]
                 if not (len(boxes) == len(anno)):
                     # from IPython import embed;embed()
-                    print('warning: %s anno donnot match boxes' % seq_name)
+                    print("warning: %s anno donnot match boxes" % seq_name)
                     len_min = min(len(boxes), len(anno))
                     boxes = boxes[:len_min]
                     anno = anno[:len_min]
                 assert len(boxes) == len(anno)
 
                 ious, center_errors, norm_center_errors = self._calc_metrics(boxes, anno)
-                succ_curve[s], prec_curve[s], norm_prec_curve[s] = self._calc_curves(ious, center_errors,
-                                                                                     norm_center_errors)
+                succ_curve[s], prec_curve[s], norm_prec_curve[s] = self._calc_curves(
+                    ious, center_errors, norm_center_errors)
 
                 # calculate average tracking speed
-                time_file = os.path.join(
-                    self.result_dir, name, 'times/%s_time.txt' % seq_name)
+                time_file = os.path.join(self.result_dir, name, "times/%s_time.txt" % seq_name)
                 if os.path.isfile(time_file):
                     times = np.loadtxt(time_file)
                     times = times[times > 0]
                     if len(times) > 0:
-                        speeds[s] = np.mean(1. / times)
+                        speeds[s] = np.mean(1.0 / times)
 
                 # store sequence-wise performance
-                performance[name]['seq_wise'].update({seq_name: {
-                    'success_curve': succ_curve[s].tolist(),
-                    'precision_curve': prec_curve[s].tolist(),
-                    'normalized_precision_curve': norm_prec_curve[s].tolist(),
-                    'success_score': np.mean(succ_curve[s]),
-                    'precision_score': prec_curve[s][20],
-                    'normalized_precision_score': np.mean(norm_prec_curve[s]),
-                    'success_rate': succ_curve[s][self.nbins_iou // 2],
-                    'speed_fps': speeds[s] if speeds[s] > 0 else -1}})
+                performance[name]["seq_wise"].update({
+                    seq_name: {
+                        "success_curve": succ_curve[s].tolist(),
+                        "precision_curve": prec_curve[s].tolist(),
+                        "normalized_precision_curve": norm_prec_curve[s].tolist(),
+                        "success_score": np.mean(succ_curve[s]),
+                        "precision_score": prec_curve[s][20],
+                        "normalized_precision_score": np.mean(norm_prec_curve[s]),
+                        "success_rate": succ_curve[s][self.nbins_iou // 2],
+                        "speed_fps": speeds[s] if speeds[s] > 0 else -1,
+                    }
+                })
 
             succ_curve = np.mean(succ_curve, axis=0)
             prec_curve = np.mean(prec_curve, axis=0)
@@ -242,18 +250,19 @@ class ExperimentLaSOT(object):
                 avg_speed = -1
 
             # store overall performance
-            performance[name]['overall'].update({
-                'success_curve': succ_curve.tolist(),
-                'precision_curve': prec_curve.tolist(),
-                'normalized_precision_curve': norm_prec_curve.tolist(),
-                'success_score': succ_score,
-                'precision_score': prec_score,
-                'normalized_precision_score': norm_prec_score,
-                'success_rate': succ_rate,
-                'speed_fps': avg_speed})
+            performance[name]["overall"].update({
+                "success_curve": succ_curve.tolist(),
+                "precision_curve": prec_curve.tolist(),
+                "normalized_precision_curve": norm_prec_curve.tolist(),
+                "success_score": succ_score,
+                "precision_score": prec_score,
+                "normalized_precision_score": norm_prec_score,
+                "success_rate": succ_rate,
+                "speed_fps": avg_speed,
+            })
 
         # report the performance
-        with open(report_file, 'w') as f:
+        with open(report_file, "w") as f:
             json.dump(performance, f, indent=4)
         # plot precision and success curves
         self.plot_curves(tracker_names)
@@ -263,14 +272,12 @@ class ExperimentLaSOT(object):
     def _calc_metrics(self, boxes, anno):
         valid = ~np.any(np.isnan(anno), axis=1)
         if len(valid) == 0:
-            print('Warning: no valid annotations')
+            print("Warning: no valid annotations")
             return None, None, None
         else:
             ious = rect_iou(boxes[valid, :], anno[valid, :])
-            center_errors = center_error(
-                boxes[valid, :], anno[valid, :])
-            norm_center_errors = normalized_center_error(
-                boxes[valid, :], anno[valid, :])
+            center_errors = center_error(boxes[valid, :], anno[valid, :])
+            norm_center_errors = normalized_center_error(boxes[valid, :], anno[valid, :])
             return ious, center_errors, norm_center_errors
 
     def _calc_curves(self, ious, center_errors, norm_center_errors):
@@ -292,36 +299,34 @@ class ExperimentLaSOT(object):
 
         return succ_curve, prec_curve, norm_prec_curve
 
-    def plot_curves(self, tracker_names, extension='.png'):
+    def plot_curves(self, tracker_names, extension=".png"):
         # assume tracker_names[0] is your tracker
         report_dir = os.path.join(self.report_dir, tracker_names[0])
-        assert os.path.exists(report_dir), \
-            'No reports found. Run "report" first' \
-            'before plotting curves.'
-        report_file = os.path.join(report_dir, 'performance.json')
-        assert os.path.exists(report_file), \
-            'No reports found. Run "report" first' \
-            'before plotting curves.'
+        assert os.path.exists(report_dir), ('No reports found. Run "report" first'
+                                            "before plotting curves.")
+        report_file = os.path.join(report_dir, "performance.json")
+        assert os.path.exists(report_file), ('No reports found. Run "report" first'
+                                             "before plotting curves.")
 
         # load pre-computed performance
         with open(report_file) as f:
             performance = json.load(f)
 
-        succ_file = os.path.join(report_dir, 'success_plots' + extension)
-        prec_file = os.path.join(report_dir, 'precision_plots' + extension)
-        norm_prec_file = os.path.join(report_dir, 'norm_precision_plots' + extension)
-        key = 'overall'
+        succ_file = os.path.join(report_dir, "success_plots" + extension)
+        prec_file = os.path.join(report_dir, "precision_plots" + extension)
+        norm_prec_file = os.path.join(report_dir, "norm_precision_plots" + extension)
+        key = "overall"
 
         # markers
-        markers = ['-', '--', '-.']
-        markers = [c + m for m in markers for c in [''] * 10]
+        markers = ["-", "--", "-."]
+        markers = [c + m for m in markers for c in [""] * 10]
 
         # filter performance by tracker_names
         performance = {k: v for k, v in performance.items() if k in tracker_names}
 
         # sort trackers by success score
         tracker_names = list(performance.keys())
-        succ = [t[key]['success_score'] for t in performance.values()]
+        succ = [t[key]["success_score"] for t in performance.values()]
         inds = np.argsort(succ)[::-1]
         tracker_names = [tracker_names[i] for i in inds]
 
@@ -331,35 +336,37 @@ class ExperimentLaSOT(object):
         lines = []
         legends = []
         for i, name in enumerate(tracker_names):
-            line, = ax.plot(thr_iou,
-                            performance[name][key]['success_curve'],
-                            markers[i % len(markers)])
+            (line, ) = ax.plot(
+                thr_iou,
+                performance[name][key]["success_curve"],
+                markers[i % len(markers)],
+            )
             lines.append(line)
-            legends.append('%s: [%.3f]' % (name, performance[name][key]['success_score']))
-        matplotlib.rcParams.update({'font.size': 7.4})
+            legends.append("%s: [%.3f]" % (name, performance[name][key]["success_score"]))
+        matplotlib.rcParams.update({"font.size": 7.4})
         # legend = ax.legend(lines, legends, loc='center left', bbox_to_anchor=(1, 0.5))
-        legend = ax.legend(lines, legends, loc='lower left', bbox_to_anchor=(0., 0.))
+        legend = ax.legend(lines, legends, loc="lower left", bbox_to_anchor=(0.0, 0.0))
 
-        matplotlib.rcParams.update({'font.size': 9})
-        ax.set(xlabel='Overlap threshold',
-               ylabel='Success rate',
-               xlim=(0, 1), ylim=(0, 1),
-               title='Success plots on LaSOT')
+        matplotlib.rcParams.update({"font.size": 9})
+        ax.set(
+            xlabel="Overlap threshold",
+            ylabel="Success rate",
+            xlim=(0, 1),
+            ylim=(0, 1),
+            title="Success plots on LaSOT",
+        )
         ax.grid(True)
         fig.tight_layout()
 
         # control ratio
         # ax.set_aspect('equal', 'box')
 
-        print('Saving success plots to', succ_file)
-        fig.savefig(succ_file,
-                    bbox_extra_artists=(legend,),
-                    bbox_inches='tight',
-                    dpi=300)
+        print("Saving success plots to", succ_file)
+        fig.savefig(succ_file, bbox_extra_artists=(legend, ), bbox_inches="tight", dpi=300)
 
         # sort trackers by precision score
         tracker_names = list(performance.keys())
-        prec = [t[key]['precision_score'] for t in performance.values()]
+        prec = [t[key]["precision_score"] for t in performance.values()]
         inds = np.argsort(prec)[::-1]
         tracker_names = [tracker_names[i] for i in inds]
 
@@ -369,33 +376,38 @@ class ExperimentLaSOT(object):
         lines = []
         legends = []
         for i, name in enumerate(tracker_names):
-            line, = ax.plot(thr_ce,
-                            performance[name][key]['precision_curve'],
-                            markers[i % len(markers)])
+            (line, ) = ax.plot(
+                thr_ce,
+                performance[name][key]["precision_curve"],
+                markers[i % len(markers)],
+            )
             lines.append(line)
-            legends.append('%s: [%.3f]' % (name, performance[name][key]['precision_score']))
-        matplotlib.rcParams.update({'font.size': 7.4})
+            legends.append("%s: [%.3f]" % (name, performance[name][key]["precision_score"]))
+        matplotlib.rcParams.update({"font.size": 7.4})
         # legend = ax.legend(lines, legends, loc='center left', bbox_to_anchor=(1, 0.5))
-        legend = ax.legend(lines, legends, loc='lower right', bbox_to_anchor=(1., 0.))
+        legend = ax.legend(lines, legends, loc="lower right", bbox_to_anchor=(1.0, 0.0))
 
-        matplotlib.rcParams.update({'font.size': 9})
-        ax.set(xlabel='Location error threshold',
-               ylabel='Precision',
-               xlim=(0, thr_ce.max()), ylim=(0, 1),
-               title='Precision plots on LaSOT')
+        matplotlib.rcParams.update({"font.size": 9})
+        ax.set(
+            xlabel="Location error threshold",
+            ylabel="Precision",
+            xlim=(0, thr_ce.max()),
+            ylim=(0, 1),
+            title="Precision plots on LaSOT",
+        )
         ax.grid(True)
         fig.tight_layout()
 
         # control ratio
         # ax.set_aspect('equal', 'box')
 
-        print('Saving precision plots to', prec_file)
+        print("Saving precision plots to", prec_file)
         fig.savefig(prec_file, dpi=300)
 
         # added by user
         # sort trackers by normalized precision score
         tracker_names = list(performance.keys())
-        prec = [t[key]['normalized_precision_score'] for t in performance.values()]
+        prec = [t[key]["normalized_precision_score"] for t in performance.values()]
         inds = np.argsort(prec)[::-1]
         tracker_names = [tracker_names[i] for i in inds]
 
@@ -405,43 +417,46 @@ class ExperimentLaSOT(object):
         lines = []
         legends = []
         for i, name in enumerate(tracker_names):
-            line, = ax.plot(thr_nce,
-                            performance[name][key]['normalized_precision_curve'],
-                            markers[i % len(markers)])
+            (line, ) = ax.plot(
+                thr_nce,
+                performance[name][key]["normalized_precision_curve"],
+                markers[i % len(markers)],
+            )
             lines.append(line)
-            legends.append('%s: [%.3f]' % (name, performance[name][key]['normalized_precision_score']))
-        matplotlib.rcParams.update({'font.size': 7.4})
+            legends.append("%s: [%.3f]" % (name, performance[name][key]["normalized_precision_score"]))
+        matplotlib.rcParams.update({"font.size": 7.4})
         # legend = ax.legend(lines, legends, loc='center left', bbox_to_anchor=(1, 0.5))
-        legend = ax.legend(lines, legends, loc='lower right', bbox_to_anchor=(1., 0.))
+        legend = ax.legend(lines, legends, loc="lower right", bbox_to_anchor=(1.0, 0.0))
 
-        matplotlib.rcParams.update({'font.size': 9})
-        ax.set(xlabel='Normalized location error threshold',
-               ylabel='Normalized precision',
-               xlim=(0, thr_ce.max()), ylim=(0, 1),
-               title='Normalized precision plots on LaSOT')
+        matplotlib.rcParams.update({"font.size": 9})
+        ax.set(
+            xlabel="Normalized location error threshold",
+            ylabel="Normalized precision",
+            xlim=(0, thr_ce.max()),
+            ylim=(0, 1),
+            title="Normalized precision plots on LaSOT",
+        )
         ax.grid(True)
         fig.tight_layout()
 
         # control ratio
         # ax.set_aspect('equal', 'box')
 
-        print('Saving normalized precision plots to', norm_prec_file)
+        print("Saving normalized precision plots to", norm_prec_file)
         fig.savefig(norm_prec_file, dpi=300)
 
     def run(self, tracker, visualize=False):
-        print('Running tracker %s on %s...' % (
-            tracker.name, type(self.dataset).__name__))
+        print("Running tracker %s on %s..." % (tracker.name, type(self.dataset).__name__))
 
         # loop over the complete dataset
         for s, (img_files, anno) in enumerate(self.dataset):
             seq_name = self.dataset.seq_names[s]
-            print('--Sequence %d/%d: %s' % (s + 1, len(self.dataset), seq_name))
+            print("--Sequence %d/%d: %s" % (s + 1, len(self.dataset), seq_name))
 
             # skip if results exist
-            record_file = os.path.join(
-                self.result_dir, tracker.name, '%s.txt' % seq_name)
+            record_file = os.path.join(self.result_dir, tracker.name, "%s.txt" % seq_name)
             if os.path.exists(record_file):
-                print('  Found results, skipping', seq_name)
+                print("  Found results, skipping", seq_name)
                 continue
 
             # tracking loop
@@ -451,111 +466,154 @@ class ExperimentLaSOT(object):
             # record results
             self._record(record_file, boxes, times)
 
-    def run_masked(self, tracker, visualize=False):
-        print('Running tracker %s on %s masked version ...' % (
-            tracker.name, type(self.dataset).__name__))
+    def run_single_sequence(self, seq_index, tracker, **kwargs):
+        """
+        在单独的进程中运行单个序列的跟踪任务。
 
-        # loop over the complete dataset
-        for s, (img_files, anno) in enumerate(self.dataset):
-            seq_name = self.dataset.seq_names[s]
-            if seq_name != 'tiger-6':
-                continue
-            print('--Sequence %d/%d: %s' % (s + 1, len(self.dataset), seq_name))
+        Args:
+            seq_index: 数据集序列的索引。
+            tracker: 跟踪器实例。
+            **kwargs: 可选参数集合，例如：
+                      - visualize: 是否进行可视化
+                      - run_mask: 是否使用遮罩模式
+                      - mask_info: 遮罩信息
+                      - use_filter: 是否使用 `track_and_filter_candidates`
+                      - threshold: track_and_filter_candidates 的阈值
+        """
+        # 初始化 tracker
+        tracker_cls = choose_tracker(tracker)
+        tracker = tracker_cls()
 
+        seq_name = self.dataset.seq_names[seq_index]
+        img_files, anno = self.dataset[seq_index]
+
+        print(f"Processing Sequence {seq_index + 1}/{len(self.dataset)}: {seq_name}...")
+
+        # 提取关键字参数
+        visualize = kwargs.get("visualize", False)
+        run_mask = kwargs.get("run_mask", False)
+        use_filter = kwargs.get("use_filter", False)
+        threshold = kwargs.get("threshold", 0.25)  # 默认阈值为0.25
+
+        # mask run
+        mask_info = None
+        if run_mask:
             # img_files settings
-            masked_base_dir = "/home/jaychou/DPcode/SOITrack/nips25/org_results/lasot/test/odtrack/results/"
-            new_img_files = []
-            for old_path in img_files:
-                # 拆分路径
-                filename = old_path.split('/')[-1]
-                 # 构造新的路径
-                new_path = os.path.join(masked_base_dir, seq_name, "masked_img", filename)
-                new_img_files.append(new_path)
+            masked_base_dir = f"/mnt/second/wangyipei/SOI/nips25/org_results/lasot/test/{tracker.name}/results/"
+            # 读取seq_name对应的数据
+            mask_json_path = os.path.join(masked_base_dir, seq_name, "masked_info.json")
+            if os.path.exists(mask_json_path):
+                # 如果找到就读取
+                with open(mask_json_path, "r") as f:
+                    all_mask_data = json.load(f)
+                mask_info = all_mask_data  # 传给track就行，具体解析可以track内部做
+            else:
+                print(f"  [Warning] No mask_info found for {seq_name}, proceed without mask.")
 
-            # skip if results exist
-            record_file = os.path.join(
-                self.result_dir_masked, tracker.name, '%s.txt' % seq_name)
-            if os.path.exists(record_file):
-                print('  Found results, skipping', seq_name)
-                continue
+        # 构建结果保存路径
+        result_dir = self.result_dir_masked if run_mask else self.result_dir
+        record_file = os.path.join(result_dir, tracker.name, f"{seq_name}.txt")
 
-            # tracking loop
-            boxes, times = tracker.track(seq_name, new_img_files, anno, visualize=visualize)
+        if os.path.exists(record_file):
+            print(f"  Found results, skipping {seq_name}")
+            return
+
+        if use_filter:
+            print(f"Using `track_and_filter_candidates` for sequence: {seq_name}")
+            save_path = os.path.join(self.result_dir, seq_name)
+            seq_candidate_data, num, boxes = tracker.track_and_filter_candidates(
+                img_files,
+                save_path,
+                anno,
+                seq_name,
+                threshold=threshold,
+                track_vis=False,
+                heatmap_vis=False,
+                masked=True,
+                save_masked_img=False,
+            )
+            # assert len(boxes) == len(anno)
+            # # 保存筛选后的结果
+            # self._record(record_file, boxes, num)
+        else:
+            print(f"Using `track` for sequence: {seq_name}")
+            boxes, times = tracker.track(seq_name, img_files, anno, visualize=visualize, mask_info=mask_info)
             assert len(boxes) == len(anno)
-
-            # record results
+            # 保存常规跟踪结果
             self._record(record_file, boxes, times)
+            print(f"  Sequence {seq_name} completed.")
 
     def _record(self, record_file, boxes, times):
         # record bounding boxes
         record_dir = os.path.dirname(record_file)
         if not os.path.isdir(record_dir):
             os.makedirs(record_dir)
-        np.savetxt(record_file, boxes, fmt='%.3f', delimiter=',')
+        np.savetxt(record_file, boxes, fmt="%.3f", delimiter=",")
         while not os.path.exists(record_file):
-            print('warning: recording failed, retrying...')
-            np.savetxt(record_file, boxes, fmt='%.3f', delimiter=',')
-        print('  Results recorded at', record_file)
+            print("warning: recording failed, retrying...")
+            np.savetxt(record_file, boxes, fmt="%.3f", delimiter=",")
+        print("  Results recorded at", record_file)
 
         # record running times
-        time_dir = os.path.join(record_dir, 'times')
+        time_dir = os.path.join(record_dir, "times")
         if not os.path.isdir(time_dir):
             os.makedirs(time_dir)
-        time_file = os.path.join(time_dir, os.path.basename(
-            record_file).replace('.txt', '_time.txt'))
-        np.savetxt(time_file, times, fmt='%.8f')
+        time_file = os.path.join(time_dir, os.path.basename(record_file).replace(".txt", "_time.txt"))
+        np.savetxt(time_file, times, fmt="%.8f")
 
-    def run_for_Data_Screening(self, tracker, th=0.25):
-        print('Running tracker %s on %s...' % (tracker.name, type(self.dataset).__name__))
-        print('th is %.3f' % th)
+    def run_soi(self, tracker, threshold=0.25, track_vis=False, heatmap_vis=False, masked=True):
+        print("Running tracker %s on %s..." % (tracker.name, type(self.dataset).__name__))
 
         # loop over the complete dataset
         for s, (img_files, anno) in enumerate(self.dataset):
-            SEQUENCES = [
-                "sheep-9", "tiger-6", "turtle-8", "bird-2", "robot-1", "tiger-4",
-                "hat-1", "hand-9", "zebra-10", "umbrella-9", "volleyball-19", "person-5"
-            ]
-            if self.dataset.seq_names[s] not in SEQUENCES:
-                continue
 
             save_path = os.path.join(self.result_dir, self.dataset.seq_names[s])
 
             seq_name = self.dataset.seq_names[s]
-            print('--Sequence %d/%d: %s' % (s + 1, len(self.dataset), seq_name))
+            print("--Sequence %d/%d: %s" % (s + 1, len(self.dataset), seq_name))
 
             # skip if results exist
-            num_file = os.path.join(self.score_dir, 'nc_%s.txt' % seq_name)
+            num_file = os.path.join(self.score_dir, "nc_%s.txt" % seq_name)
             if os.path.exists(num_file):
-                print('  Found results, skipping', seq_name)
+                print("  Found results, skipping", seq_name)
                 continue
 
             # tracking loop
-            seq_candidate_data, num,  boxes = tracker.track_and_filter_candidates(img_files, save_path, anno, seq_name, threshold=th)  # 对齐run_sequence
-            # assert len(seq_candidate_data['index']) + 1 == len(anno)
-            assert len(boxes) == len(anno)
-
-            # record results
-            # self._record(record_file, boxes, times)
-
-            self._record_with_score(num_file, seq_name, seq_candidate_data, num)
+            seq_candidate_data, num, boxes = tracker.track_and_filter_candidates(
+                img_files,
+                save_path,
+                anno,
+                seq_name,
+                threshold=threshold,
+                track_vis=False,
+                heatmap_vis=False,
+                masked=True,
+                save_masked_img=False,
+            )  # 对齐run_sequence
 
     def _record_with_score(self, num_file, seq_name, seq_candidate_data, num):
         # record running times
-        np.savetxt(num_file, num, delimiter=',', encoding='utf_8_sig', fmt='%d')
+        np.savetxt(num_file, num, delimiter=",", encoding="utf_8_sig", fmt="%d")
 
         # record score_info
-        score_file = os.path.join(self.score_dir, 'score_info.jsonl')
+        score_file = os.path.join(self.score_dir, "score_info.jsonl")
         append_to_jsonl_file(score_file, seq_name, seq_candidate_data)
 
-    def sequences_select(self, tracker_names, root_dir, save_dir, screen_mode='MaxPooling', th=0.1):
+    def sequences_select(self, tracker_names, root_dir, save_dir, screen_mode="MaxPooling", th=0.1):
         assert isinstance(tracker_names, (list, tuple))
 
         if not os.path.isdir(save_dir):
             os.makedirs(save_dir)
         name = self.dataset.name
         subset = self.dataset.subset[0]
-        info_file = os.path.join(save_dir, 'data', self.dataset.name, self.subset, screen_mode + 'th_{}'.format(th),
-                                 '%s_%s_info.json' % (name, subset))
+        info_file = os.path.join(
+            save_dir,
+            "data",
+            self.dataset.name,
+            self.subset,
+            screen_mode + "th_{}".format(th),
+            "%s_%s_info.json" % (name, subset),
+        )
         seq_names = []
         for s, (_, anno) in enumerate(self.dataset):  # 序列遍历
             seq_name = self.dataset.seq_names[s]
@@ -564,14 +622,20 @@ class ExperimentLaSOT(object):
             # seq_result_select.update({subset: {}})
             for i, tracker in enumerate(tracker_names):  # tracker遍历
 
-                num_csore_json_file = os.path.join(root_dir, '../score_map_json', tracker, self.dataset.name, subset,
-                                                   'score_map',
-                                                   f'{seq_name}_score_map.json')
+                num_csore_json_file = os.path.join(
+                    root_dir,
+                    "../score_map_json",
+                    tracker,
+                    self.dataset.name,
+                    subset,
+                    "score_map",
+                    f"{seq_name}_score_map.json",
+                )
                 if os.path.exists(
                         num_csore_json_file):  # /home/micros/SOI/tomp/lasot/test/score_map/airplane-9_score_map.json
-                    print('operate %s in lasot of %s' % (seq_name, tracker))
+                    print("operate %s in lasot of %s" % (seq_name, tracker))
                 else:
-                    print('No results for ', seq_name)
+                    print("No results for ", seq_name)
                     continue
 
                 # 打开json文件，读取数据
@@ -581,7 +645,7 @@ class ExperimentLaSOT(object):
 
             for j in range(len(anno) - 1):
                 if np.any(np.isnan(anno[j + 1])):
-                    print('%s is absent frame')
+                    print("%s is absent frame")
                     continue
                 a = 0
                 for k in range(len(seq_tc_num)):
@@ -597,18 +661,24 @@ class ExperimentLaSOT(object):
             else:
                 continue
 
-        with open(info_file, 'w') as f:
+        with open(info_file, "w") as f:
             json.dump(seq_names, f, indent=4)
 
-    def sequences_analysis(self, tracker_names, root_dir, save_dir, screen_mode='MaxPooling', th=0.1):
+    def sequences_analysis(self, tracker_names, root_dir, save_dir, screen_mode="MaxPooling", th=0.1):
         assert isinstance(tracker_names, (list, tuple))
-        print('th is:' + str(th))
+        print("th is:" + str(th))
         if not os.path.isdir(save_dir):
             os.makedirs(save_dir)
         name = self.dataset.name
         subset = self.dataset.subset[0]
-        info_file = os.path.join(save_dir, 'data', self.dataset.name, self.subset, screen_mode + 'th_{}'.format(th),
-                                 '%s_%s_info.json' % (name, subset))
+        info_file = os.path.join(
+            save_dir,
+            "data",
+            self.dataset.name,
+            self.subset,
+            screen_mode + "th_{}".format(th),
+            "%s_%s_info.json" % (name, subset),
+        )
         seq_names = []
         for s, (_, anno) in enumerate(self.dataset):  # 序列遍历
             seq_name = self.dataset.seq_names[s]
@@ -617,21 +687,26 @@ class ExperimentLaSOT(object):
             # seq_result_select.update({subset: {}})
             for i, tracker in enumerate(tracker_names):  # tracker遍历
 
-                num_csore_json_file = os.path.join(root_dir, tracker, self.dataset.name, subset, 'score_map',
-                                                   f'{seq_name}_score_map.json')
+                num_csore_json_file = os.path.join(
+                    root_dir,
+                    tracker,
+                    self.dataset.name,
+                    subset,
+                    "score_map",
+                    f"{seq_name}_score_map.json",
+                )
                 if os.path.exists(
                         num_csore_json_file):  # /home/micros/SOI/tomp/lasot/test/score_map/airplane-9_score_map.json
-                    print('operate %s in lasot of %s' % (seq_name, tracker))
+                    print("operate %s in lasot of %s" % (seq_name, tracker))
                 else:
-                    print('No results for ', seq_name)
+                    print("No results for ", seq_name)
                     continue
 
                 # 打开json文件，读取数据
                 with open(num_csore_json_file, "r") as f:
                     data = json.load(f)
-                seq_candidate_scores, seq_candidate_coords, seq_tc_num = analysis_candidate_set(data, anno, th=th,
-                                                                                                screen_mode=screen_mode,
-                                                                                                alpha=0.8)
+                seq_candidate_scores, seq_candidate_coords, seq_tc_num = (analysis_candidate_set(
+                    data, anno, th=th, screen_mode=screen_mode, alpha=0.8))
 
                 single_boj_num = 0
                 obj_disappear_num = 0
@@ -645,101 +720,56 @@ class ExperimentLaSOT(object):
                     else:
                         has_candiadates += 1
                 if has_candiadates == 0:  # 无干扰物
-                    ratio[tracker] = 0.
+                    ratio[tracker] = 0.0
                 else:
                     seq_trackers_judge += 1
                     ratio[tracker] = has_candiadates
             if seq_trackers_judge > 1:
                 ratio = self.mk_ratio(ratio, len(anno))
-                if ratio['adv'] >= 0.1:
+                if ratio["adv"] >= 0.1:
                     self.choose_seq_for_soi(seq_name, ratio, save_dir, th=th, screen_mode=screen_mode)
                     # append
                     seq_names.append(seq_name)
                 else:
-                    print('Interferer challenge for sequence %s is not dominant' % seq_name)
+                    print("Interferer challenge for sequence %s is not dominant" % seq_name)
             else:
-                print('The sequence %s has not interference' % seq_name)
+                print("The sequence %s has not interference" % seq_name)
         #
-        with open(info_file, 'w') as f:
+        with open(info_file, "w") as f:
             json.dump(seq_names, f, indent=4)
 
     def choose_seq_for_soi(self, seq_name, soi_frames, save_dir, screen_mode, th):
         # seq_dir = os.path.join(save_dir, 'data')
         # anno_dir = os.path.join(save_dir, 'data')
         base_path = os.path.dirname(self.dataset.seq_dirs[0])
-        file_path = os.path.join(os.path.dirname(os.path.dirname(base_path)), seq_name[:seq_name.rfind('-')], seq_name)
-        save_path = os.path.join(save_dir, 'data', self.dataset.name, self.subset, screen_mode + 'th_{}'.format(th),
-                                 'data', seq_name)
+        file_path = os.path.join(
+            os.path.dirname(os.path.dirname(base_path)),
+            seq_name[:seq_name.rfind("-")],
+            seq_name,
+        )
+        save_path = os.path.join(
+            save_dir,
+            "data",
+            self.dataset.name,
+            self.subset,
+            screen_mode + "th_{}".format(th),
+            "data",
+            seq_name,
+        )
         print(f"choose seq {file_path} into soi")  # 使用f-string来格式化字符串，更简洁高效
 
         if os.path.exists(save_path):
-            print('seq has been operated')
+            print("seq has been operated")
         else:
             makedir(save_path)
-            frame_path = os.path.join(save_path, 'soi.txt')
-            np.savetxt(frame_path, soi_frames, fmt='%d', delimiter=',')
-
-    def mk_ratio(self, ratio, length):
-        # use list comprehension to calculate the ratio for each key
-        ratio1 = {k + '_ra': v / length for k, v in ratio.items()}
-        # use sum and len to calculate the average ratio
-        ra = sum(ratio.values()) / (len(ratio) * length)
-        print(ra)
-        # use dict.update to add new items to the original ratio
-        ratio.update({'adv': ra, 'length': length})
-        ratio.update(ratio1)
-        return ratio
-
-    def run_for_visual(self, tracker, Is_save, img_save_path):
-        print('Running tracker %s on %s...' % (tracker.name, type(self.dataset).__name__))
-
-        # loop over the complete dataset
-        for s, (img_files, anno) in enumerate(self.dataset):
-
-            seq_name = self.dataset.seq_names[s]
-            print('--Sequence %d/%d: %s' % (s + 1, len(self.dataset), seq_name))
-
-            # skip if results exist
-            img_path = os.path.join(
-                img_save_path, 'VISUAL', self.dataset.name, tracker.name, 'img', self.subset, seq_name)
-            if not os.path.exists(img_path):
-                makedir(img_path)
-            # if os.path.exists(img_path):
-            #     print('  Found results, skipping', seq_name)
-            #     continue
-
-            # tracking loop
-            boxes = tracker.track_for_screening_visual(img_files, anno, seq_name, img_path, Is_save)  # 对齐run_sequence
-            assert len(boxes) == len(anno)
-
-    def run_for_score_map(self, tracker):
-        print('Running tracker %s on %s...' % (tracker.name, type(self.dataset).__name__))
-
-        # loop over the complete dataset
-        for s, (img_files, anno) in enumerate(self.dataset):
-
-            seq_name = self.dataset.seq_names[s]
-            print('--Sequence %d/%d: %s' % (s + 1, len(self.dataset), seq_name))
-
-            # skip if results exist
-            num_file = os.path.join(self.score_dir, '../score_map', f'{seq_name}_score_map.json')
-            if os.path.exists(num_file):
-                print('  Found results, skipping', seq_name)
-                continue
-
-            # tracking loop
-            seq_score_map_data = tracker.track_for_score_map(img_files, anno)  # 对齐run_sequence
-            # assert len(seq_candidate_data['index']) + 1 == len(anno)
-            print('track done, start record')
-
-            # record results
-            self._record_with_score_map(seq_name, seq_score_map_data)
+            frame_path = os.path.join(save_path, "soi.txt")
+            np.savetxt(frame_path, soi_frames, fmt="%d", delimiter=",")
 
     def _record_with_score_map(self, seq_name, seq_score_map_data):
         #
-        json_file = os.path.join(self.score_map_dir, f'{seq_name}_score_map.json')
+        json_file = os.path.join(self.score_map_dir, f"{seq_name}_score_map.json")
         # 将响应图添加到字典中
-        data = {'score_map_list': seq_score_map_data['sm']}
+        data = {"score_map_list": seq_score_map_data["sm"]}
         # 打开json文件，写入数据
         with open(json_file, "w") as f:
             json.dump(data, f)
