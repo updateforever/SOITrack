@@ -22,7 +22,7 @@ def run_single_sequence_wrapper(experiment, seq_idx, tracker, kwargs):
     try:
         # 获取当前进程名称和ID，分配 GPU
         worker_name = multiprocessing.current_process().name
-        worker_id = int(worker_name.split('-')[-1]) - 1
+        worker_id = int(worker_name.split("-")[-1]) - 1
         num_gpu = torch.cuda.device_count()
         gpu_id = worker_id % num_gpu
 
@@ -65,7 +65,9 @@ def get_list_file(dataset, save_dir, subsets, report_th=None):
 
 def setup_parser():
     """设置命令行参数解析器"""
-    parser = argparse.ArgumentParser(description="运行目标跟踪器，支持多种数据集和设置。")
+    parser = argparse.ArgumentParser(
+        description="运行目标跟踪器，支持多种数据集和设置。"
+    )
     # base settings
     parser.add_argument(
         "--tracker",
@@ -95,13 +97,13 @@ def setup_parser():
     parser.add_argument(
         "--save_dir",
         type=str,
-        default="/mnt/second/wangyipei/SOI/nips25/org_results",
+        default="/home/jaychou/DPcode/SOITrack/nips25/org_results",
         help="结果保存路径",
     )
     parser.add_argument(
         "--dataset_mkdir",
         type=str,
-        default="/mnt/second/wangyipei/SOI/nips25",
+        default="/home/jaychou/DPcode/SOITrack/nips25",
         help="数据集根目录",
     )
     parser.add_argument("--subsets", type=str, default="test", help="子数据集名称")
@@ -113,13 +115,17 @@ def setup_parser():
     parser.add_argument("--run_mask", action="store_true", help="线程数")
     # report
     parser.add_argument("--report", action="store_true", help="生成报告")
-    parser.add_argument("--masked_re", action="store_true", help="测试masked后的序列跟踪性能")
+    parser.add_argument(
+        "--masked_re", action="store_true", help="测试masked后的序列跟踪性能"
+    )
     parser.add_argument("--visual", action="store_true", help="可视化结果")
 
     return parser
 
 
-def run_experiment_sequence(sequence, tracker, dataset_dir, save_dir, subsets, list_file):
+def run_experiment_sequence(
+    sequence, tracker, dataset_dir, save_dir, subsets, list_file
+):
     """
     在单独的进程中运行单个跟踪序列
     Args:
@@ -173,7 +179,9 @@ def main():
     if args.dataset in ["vot", "votSOI"]:
         experiment = exper_class(dataset_dir, save_dir, version=2019)
     else:
-        experiment = exper_class(dataset_dir, save_dir, args.subsets, list_file=list_file)
+        experiment = exper_class(
+            dataset_dir, save_dir, args.subsets, list_file=list_file
+        )
 
     # ========= 1. run ========== #
     print("启动多线程追踪器运行...")
@@ -196,7 +204,9 @@ def main():
                 "use_filter": args.use_filter,
                 "threshold": args.threshold,
             },
-        ) for seq_idx in range(len(experiment.dataset)) for tracker in trackers
+        )
+        for seq_idx in range(len(experiment.dataset))
+        for tracker in trackers
     ]
 
     print(f"共生成了 {len(param_list)} 个任务，使用 {num_threads} 个线程进行并行处理。")
